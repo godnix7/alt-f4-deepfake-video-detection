@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepFake Detector</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- Main app container -->
+    <div class="container">
+        <h1>🎭 DeepFake Video Detector</h1>
+        <p class="subtitle">Upload a video to check if it contains face-swap deepfakes</p>
+
+        <!-- Upload area -->
+        <div class="upload-box" id="uploadBox">
+            <input type="file" id="videoInput" accept="video/*" hidden>
+            <div class="upload-icon">📹</div>
+            <p>Click to upload a video or drag &amp; drop</p>
+            <p class="hint">Supported: MP4, AVI, MOV, MKV, WEBM (max 100MB)</p>
+            <button class="btn" onclick="document.getElementById('videoInput').click()">
+                Choose Video
+            </button>
+        </div>
+
+        <!-- Selected file + analyze action -->
+        <div id="fileInfo" style="display:none">
+            <p id="fileName"></p>
+            <button class="btn btn-analyze" id="analyzeBtn" onclick="analyzeVideo()">
+                🔍 Analyze Video
+            </button>
+        </div>
+
+        <!-- Loader while inference is running -->
+        <div id="loader" style="display:none">
+            <div class="spinner"></div>
+            <p>Analyzing video frames... Please wait</p>
+        </div>
+
+        <!-- Prediction output -->
+        <div id="result" style="display:none">
+            <div class="result-card" id="resultCard">
+                <div class="verdict" id="verdictText"></div>
+                <div class="confidence" id="confidenceText"></div>
+                <div class="details" id="detailsText"></div>
+                <button class="btn" onclick="resetApp()">Analyze Another Video</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Cache UI references once for simpler event handlers.
+        const videoInput = document.getElementById("videoInput");
+        const uploadBox = document.getElementById("uploadBox");
+        const fileInfo = document.getElementById("fileInfo");
+        const fileName = document.getElementById("fileName");
+        const loader = document.getElementById("loader");
+        const result = document.getElementById("result");
+        const resultCard = document.getElementById("resultCard");
+        const verdictText = document.getElementById("verdictText");
+        const confidenceText = document.getElementById("confidenceText");
+        const detailsText = document.getElementById("detailsText");
+
+        // Show selected file details.
+        videoInput.addEventListener("change", () => {
+            if (videoInput.files.length > 0) {
+                fileInfo.style.display = "block";
+                fileName.textContent = `Selected: ${videoInput.files[0].name}`;
+                result.style.display = "none";
+            }
+        });
+
+        // Clicking the upload area opens the file picker.
+        uploadBox.addEventListener("click", () => {
+            videoInput.click();
+        });
+
+        // Drag-and-drop styling handlers.
+        uploadBox.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            uploadBox.classList.add("drag-active");
+        });
+
+        uploadBox.addEventListener("dragleave", () => {
+            uploadBox.classList.remove("drag-active");
+        });
+
+        // Handle dropped file and mirror picker behavior.
+        uploadBox.addEventListener("drop", (e) => {
+            e.preventDefault();
+            uploadBox.classList.remove("drag-active");
+            if (e.dataTransfer.files.length > 0) {
+                videoInput.files = e.dataTransfer.files;
+                fileInfo.style.display = "block";
+                fileName.textContent = `Selected: ${videoInput.files[0].name}`;
+                result.style.display = "none";
+            }
+        });
+
+        // Send video to backend and render response.
+        async function analyzeVideo() {
+            if (!videoInput.files.length) {
+                alert("Please choose a video first.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("video", videoInput.files[0]);
+
+            loader.style.display = "block";
+            result.style.display = "none";
+            fileInfo.style.display = "none";
+
+            try {
+                const response = await fetch("/predict", { method: "POST", body: formData });
+                const data = await response.json();
+
+                if (data.label === "FAKE") {
+                    resultCard.className = "result-card fake";
+                    verdictText.textContent = "⚠️ FAKE VIDEO DETECTED";
+                    confidenceText.textContent = `Confidence: ${data.confidence}%`;
+                    detailsText.textContent = `Frames Analyzed: ${data.frames_analyzed} | Fake Probability: ${data.fake_prob}%`;
+                } else if (data.label === "REAL") {
+                    resultCard.className = "result-card real";
+                    verdictText.textContent = "✅ REAL VIDEO";
+                    confidenceText.textContent = `Confidence: ${data.confidence}%`;
+                    detailsText.textContent = `Frames Analyzed: ${data.frames_analyzed} | Fake Probability: ${data.fake_prob}%`;
+                } else {
+                    resultCard.className = "result-card fake";
+                    verdictText.textContent = "ERROR";
+                    confidenceText.textContent = "Confidence: 0%";
+                    detailsText.textContent = data.error || "Something went wrong while analyzing the video.";
+                }
+            } catch (err) {
+                resultCard.className = "result-card fake";
+                verdictText.textContent = "ERROR";
+                confidenceText.textContent = "Confidence: 0%";
+                detailsText.textContent = err.message;
+            }
+
+            loader.style.display = "none";
+            result.style.display = "block";
+        }
+
+        // Reset UI state for a new upload.
+        function resetApp() {
+            videoInput.value = "";
+            fileInfo.style.display = "none";
+            loader.style.display = "none";
+            result.style.display = "none";
+            fileName.textContent = "";
+        }
+    </script>
+</body>
+</html>
