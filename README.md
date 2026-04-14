@@ -35,7 +35,7 @@ deepfake_detector/
 
 ### 1. Clone / Download the project
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/godnix7/alt-f4-deepfake-video-detection
 cd deepfake_detector
 ```
 
