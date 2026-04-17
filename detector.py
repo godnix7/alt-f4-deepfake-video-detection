@@ -14,6 +14,7 @@ from utils import (
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 WEIGHTS_PATH = os.path.join("model_weights", "deepfake_detector.pth")
+FAKE_CLASS_INDEX = int(os.getenv("FAKE_CLASS_INDEX", "1"))
 
 # Load model once at startup for faster repeated predictions.
 model = load_model(WEIGHTS_PATH, DEVICE)
@@ -32,7 +33,7 @@ def analyze_video(video_path, num_frames=20):
         with torch.no_grad():
             logits = model(input_tensor)
 
-        result = aggregate_predictions(logits)
+        result = aggregate_predictions(logits, fake_class_index=FAKE_CLASS_INDEX)
         return result
     except Exception as e:
         return {

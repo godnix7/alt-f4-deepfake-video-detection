@@ -1,0 +1,150 @@
+AI/ML-Based Detection of Face-Swap Deepfake Videos
+Comprehensive Project Report
+
+1. Abstract
+This project implements a complete, local, and lightweight deepfake video detection system for academic use. The system accepts an uploaded video, extracts representative frames, detects facial regions, classifies each face as REAL or FAKE using an EfficientNet-B0 convolutional neural network, and then aggregates frame-level predictions into a final video-level verdict with confidence. The implementation includes a Flask web interface, modular Python backend, optional training pipeline, and structured error handling. The objective is to provide a practical end-to-end prototype that is simple to understand, easy to demonstrate, and extensible for advanced research.
+
+2. Introduction
+Recent progress in generative modeling has made deepfake creation accessible to non-expert users. Face-swap deepfakes, in particular, can manipulate identity in videos with high visual realism. This creates serious risks in misinformation, reputation damage, legal disputes, and digital trust. To address this challenge, the current project builds a detection pipeline that focuses on facial evidence extracted from video frames and uses deep learning classification to predict whether the content is manipulated.
+
+3. Problem Definition
+Given an input video, the system must:
+1. Process the video efficiently without requiring cloud APIs.
+2. Detect face regions likely to contain manipulation artifacts.
+3. Classify each detected face crop into REAL (0) or FAKE (1).
+4. Aggregate multiple frame predictions into one robust decision.
+5. Report a final label and confidence in a user-friendly interface.
+
+4. Objectives
+The project was designed with the following objectives:
+1. Build an end-to-end deepfake detection application that runs fully offline.
+2. Use transfer learning to reduce training cost and improve feasibility.
+3. Keep architecture modular for easy understanding and grading.
+4. Provide a simple web interface for non-technical users.
+5. Include a reference training script to demonstrate model development capability.
+
+5. System Architecture
+Pipeline:
+Input Video -> Frame Extraction -> Face Detection/Cropping -> Preprocessing -> CNN Inference -> Prediction Aggregation -> Final Verdict
+
+5.1 Video Frame Extraction
+OpenCV reads the video and selects evenly spaced frame indices using linear spacing. This balances coverage across the full video timeline while keeping computation manageable.
+
+5.2 Face Detection and Cropping
+MTCNN is used to locate the primary face in each frame. If no face is detected in all selected frames, the pipeline falls back to center crop so inference can still continue and the app does not fail.
+
+5.3 Face Preprocessing
+Each face crop is resized to 224x224 and normalized with ImageNet mean/std values required by EfficientNet-B0. The preprocessing module also handles tensor value ranges robustly so face details are preserved before classification.
+
+5.4 Classification Model
+EfficientNet-B0 pretrained on ImageNet is used as the backbone. Its original classifier is replaced by:
+Dropout(0.3) + Linear(1280 -> 2)
+This supports binary classification: REAL vs FAKE.
+
+5.5 Aggregation Strategy
+The model outputs logits for each analyzed face frame. Softmax converts logits to probabilities, and the mean fake probability determines the final verdict:
+- mean fake probability >= 0.5 => FAKE
+- mean fake probability < 0.5 => REAL
+Confidence is reported as the winning class probability.
+
+6. Technology Stack
+1. Python 3.10
+2. PyTorch
+3. timm (EfficientNet-B0 model)
+4. facenet-pytorch (MTCNN)
+5. OpenCV
+6. Flask
+7. HTML/CSS/Vanilla JavaScript
+
+7. Module-Wise Implementation
+7.1 app.py
+- Flask server entry point
+- Upload validation and file-type checks
+- Temporary file save/delete flow
+- Calls detector pipeline and returns JSON output
+
+7.2 detector.py
+- Loads model once at startup
+- Executes full inference workflow
+- Wraps execution in try/except for reliable API responses
+
+7.3 model.py
+- Defines DeepFakeDetector class
+- Loads pretrained EfficientNet-B0
+- Replaces classifier head
+- Loads local weights if present, otherwise falls back safely
+
+7.4 utils.py
+- Extracts frames from video
+- Detects/crops faces
+- Preprocesses faces for model input
+- Aggregates frame predictions into final result
+
+7.5 train.py
+- Demonstrates training/fine-tuning path using ImageFolder
+- Uses augmentation, CrossEntropyLoss, Adam, and StepLR
+- Saves trained weights to model_weights/deepfake_detector.pth
+
+7.6 templates/index.html + static/style.css
+- Single-page upload experience
+- Loader and result display
+- REAL/FAKE verdict card with confidence and details
+
+8. Dataset and Training
+Expected dataset structure:
+data/
+  train/
+    real/
+    fake/
+
+Recommended datasets:
+1. FaceForensics++
+2. DFDC (DeepFake Detection Challenge)
+
+Training uses transfer learning to reduce data and compute requirements for college-scale deployment.
+
+9. Root Cause Analysis: Why Predictions Can Be Poor
+In this project category, poor predictions are usually due to one or more of the following:
+1. Untrained or weakly trained weights.
+2. Dataset mismatch between training and test videos.
+3. Compression artifacts and low-quality videos.
+4. Incorrect preprocessing or value-range handling.
+5. Face detection misses on fast motion or profile faces.
+
+A preprocessing robustness fix was applied so tensor ranges from MTCNN are normalized correctly before model inference. This prevents information loss and improves prediction consistency.
+
+10. Evaluation Approach
+For rigorous evaluation, use:
+1. Accuracy
+2. Precision
+3. Recall
+4. F1-score
+5. ROC-AUC
+
+Also evaluate robustness on:
+1. Different codecs/resolutions
+2. Varying illumination and pose
+3. Multiple identities and manipulation methods
+
+11. Current Limitations
+1. Without high-quality trained weights, results are not reliable.
+2. Frame-independent classification ignores temporal artifacts.
+3. Performance drops when faces are very small or occluded.
+4. Binary output cannot identify manipulation type.
+
+12. Future Improvements
+1. Add temporal modeling (LSTM/Transformer) over frame features.
+2. Use stronger datasets and domain-balanced sampling.
+3. Add explainability maps (Grad-CAM) for trust and debugging.
+4. Ensemble multiple detectors for better generalization.
+5. Export to ONNX/TFLite for edge deployment.
+6. Add batch video processing and reporting dashboard.
+
+13. Conclusion
+The project successfully delivers a complete deepfake video detection workflow with a clean web interface and modular backend. It demonstrates practical use of transfer learning, facial-region analysis, and probabilistic aggregation for manipulated media detection. The architecture is intentionally simple for student-level implementation while still being functionally complete, testable, and extensible for advanced work.
+
+14. References
+1. FaceForensics++: https://github.com/ondyari/FaceForensics
+2. DFDC: https://www.kaggle.com/c/deepfake-detection-challenge
+3. Tan and Le, EfficientNet: Rethinking Model Scaling for CNNs
+4. Zhang et al., MTCNN face detection

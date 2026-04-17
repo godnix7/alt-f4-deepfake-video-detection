@@ -53,14 +53,14 @@ def detect_and_crop_faces(frames, image_size=224):
     # Fallback: center-crop resized frame if no faces are detected.
     if not face_crops:
         for frame in frames:
-            pil_img = Image.fromarray(frame).resize((image_size, image_size))
+            pil_img = Image.fromarray(frame)
             width, height = pil_img.size
             crop_size = min(width, height)
             left = (width - crop_size) // 2
             top = (height - crop_size) // 2
             right = left + crop_size
             bottom = top + crop_size
-            face_crops.append(pil_img.crop((left, top, right, bottom)))
+            face_crops.append(pil_img.crop((left, top, right, bottom)).resize((image_size, image_size)))
 
     return face_crops
 
@@ -85,16 +85,31 @@ def preprocess_faces(face_list):
     tensor_list = []
     for face in face_list:
         if isinstance(face, torch.Tensor):
+            # MTCNN tensors may be in [0,255] (post_process=False) or [-1,1].
+            face = face.detach().cpu().float()
+            if face.numel() == 0:
+                continue
+            if float(face.max()) > 1.0:
+                face = face / 255.0
+            if float(face.min()) < 0.0:
+                face = (face + 1.0) / 2.0
+            face = torch.clamp(face, 0.0, 1.0)
             face = to_pil(face)
         tensor_list.append(normalize_transform(face))
+
+    if not tensor_list:
+        raise ValueError("No valid face crops after preprocessing.")
 
     return torch.stack(tensor_list)
 
 
-def aggregate_predictions(logits_tensor):
+def aggregate_predictions(logits_tensor, fake_class_index=1):
     """Aggregate frame logits into a single video-level verdict and confidence."""
+    if fake_class_index not in (0, 1):
+        raise ValueError("fake_class_index must be 0 or 1.")
+
     probs = torch.softmax(logits_tensor, dim=1)
-    fake_probs = probs[:, 1]
+    fake_probs = probs[:, fake_class_index]
     mean_fake_prob = torch.mean(fake_probs)
 
     if mean_fake_prob >= 0.5:
